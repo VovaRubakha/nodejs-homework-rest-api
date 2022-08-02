@@ -4,6 +4,7 @@ const router = express.Router();
 
 const Contact = require("../../models/contacts");
 const createError = require("../../helpers/createError");
+const { authorize } = require("../../middlewares");
 
 const contactSchema = Joi.object({
   name: Joi.string().required(),
@@ -15,9 +16,13 @@ const contactFavoriteSchema = Joi.object({
   favorite: Joi.boolean().required(),
 });
 
-router.get("/", async (req, res, next) => {
+router.get("/", authorize, async (req, res, next) => {
   try {
-    const result = await Contact.find();
+    const { _id: owner } = req.user;
+    const result = await Contact.find({ owner }).populate(
+      "owner",
+      "name email"
+    );
     res.json(result);
   } catch (error) {
     next(error);
@@ -39,13 +44,14 @@ router.get("/:contactId", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", authorize, async (req, res, next) => {
   try {
+    const { _id: owner } = req.user;
     const { error } = contactSchema.validate(req.body);
     if (error) {
       throw createError(400, error.message);
     }
-    const result = await Contact.create(req.body);
+    const result = await Contact.create({ ...req.body, owner });
     res.status(201).json(result);
   } catch (error) {
     next(error);
