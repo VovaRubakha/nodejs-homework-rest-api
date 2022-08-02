@@ -34,7 +34,7 @@ const removeContact = async (contactId) => {
   return result;
 };
 
-const addContact = async (name, email, phone) => {
+const addContact = async ({ name, email, phone }) => {
   const contacts = await listContacts();
   const newContact = {
     id: ObjectID(),
@@ -47,13 +47,13 @@ const addContact = async (name, email, phone) => {
   return newContact;
 };
 
-const updateContact = async (id, body) => {
+const updateContact = async (contactId, body) => {
   contacts = await listContacts();
   const idx = contacts.findIndex((item) => item.id === contactId);
   if (idx === -1) {
     return null;
   }
-  contacts[idx] = { id, ...body };
+  contacts[idx] = { ...body, contactId };
   await updateContacts(contacts);
   return contacts[idx];
 };
