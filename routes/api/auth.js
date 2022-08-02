@@ -1,5 +1,6 @@
 const express = require("express");
 const Joi = require("joi");
+const bcrypt = require("bcryptjs");
 
 const User = require("../../models/user");
 
@@ -14,19 +15,25 @@ const userRegisterSchema = Joi.object({
   password: Joi.string().required(),
 });
 
+const userLoginSchema = Joi.object({
+  email: Joi.string().pattern(emailRegexp).required(),
+  password: Joi.string().min(6).required(),
+});
+
 //signup
 router.post("/register", async (req, res, next) => {
   try {
     const { error } = userRegisterSchema.validate(req.body);
     if (error) {
-      throw createError(400);
+      throw createError(400, error.message);
     }
     const { email, password, name } = req.body;
     const user = await User.findOne({ email });
     if (user) {
       throw createError(409, "email already exist");
     }
-    const result = await User.create({ email, password, name });
+    const hashPassword = await bcrypt.hash(password, 10);
+    const result = await User.create({ email, password: hashPassword, name });
     res.status(201).json({
       name: result.name,
       email: result.email,
@@ -35,5 +42,6 @@ router.post("/register", async (req, res, next) => {
     next(error);
   }
 });
+// signin
 
 module.exports = router;
