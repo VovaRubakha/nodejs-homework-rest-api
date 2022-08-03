@@ -2,13 +2,17 @@ const express = require("express");
 const Joi = require("joi");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const gravatar = require("gravatar");
+const path = require("path");
+const fs = require("fs/promises");
+const Jimp = require("jimp");
 require("dotenv").config();
 
 const User = require("../../models/user");
 
 const router = express.Router();
 const createError = require("../../helpers/createError");
-const { authorize } = require("../../middlewares");
+const { authorize, upload } = require("../../middlewares");
 
 const emailRegexp = /[a-z0-9]+@[a-z]+\.[a-z]{2,3}/;
 
@@ -25,6 +29,9 @@ const userLoginSchema = Joi.object({
 
 const { SECRET_KEY } = process.env;
 
+//avatarPath
+const avatarsDir = path.join(__dirname, "../../", "public", "avatars");
+
 //signup
 router.post("/register", async (req, res, next) => {
   try {
@@ -38,7 +45,14 @@ router.post("/register", async (req, res, next) => {
       throw createError(409, "email already exist");
     }
     const hashPassword = await bcrypt.hash(password, 10);
-    const result = await User.create({ email, password: hashPassword, name });
+    //add gravatar
+    const avatarURL = gravatar.url(email);
+    const result = await User.create({
+      email,
+      password: hashPassword,
+      name,
+      avatarURL,
+    });
     res.status(201).json({
       name: result.name,
       email: result.email,
@@ -103,9 +117,42 @@ router.get("/logout", authorize, async (req, res, next) => {
   }
 });
 
+//current
 router.get("/current", authorize, async (req, res) => {
   const { email } = req.user;
   res.status(200).json({ email });
 });
+
+//patchUserAvatar
+router.patch(
+  "/avatars",
+  authorize,
+  upload.single("avatar"),
+  async (req, res, next) => {
+    try {
+      const { _id } = req.user;
+      const { path: tempDir, originalname } = req.file;
+
+      const [extention] = originalname.split(".").reverse();
+      const newAvatar = `${_id}.${extention}`;
+      const uploadDir = path.join(avatarsDir, newAvatar);
+
+      await fs.rename(tempDir, uploadDir);
+      const avatarURL = path.join("avatars", newAvatar);
+      //addJimp
+
+      Jimp.read(uploadDir, (err, lenna) => {
+        if (err) throw err;
+        lenna.resize(250, 250).write(uploadDir);
+      });
+
+      await User.findByIdAndUpdate(_id, { avatarURL });
+      res.json({ avatarURL });
+    } catch (error) {
+      await fs.unlink(req.file.path);
+      next(error);
+    }
+  }
+);
 
 module.exports = router;
